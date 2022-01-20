@@ -35,11 +35,10 @@ class Module {
     // 2.9" Grayscale Featherwing or Breakout:
     ThinkInk_290_Grayscale4_T5 display = ThinkInk_290_Grayscale4_T5(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY);
 
-    QRCode qrcode;
-
     void show_qr_code() {
-        uint8_t qrcodeBytes[qrcode_getBufferSize(1)];
-        qrcode_initText(&qrcode, qrcodeBytes, 1, 0, "192.168.1.12");
+        QRCode qrcode;
+        uint8_t qrcodeBytes[qrcode_getBufferSize(5)];
+        qrcode_initText(&qrcode, qrcodeBytes, 5, 0, "https://open.spotify.com/artist/2nq2BeSbzExGAv3Y4HgUf7");
 
         // Write to e-ink display
         display.begin(THINKINK_GRAYSCALE4);
