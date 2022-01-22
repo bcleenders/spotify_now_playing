@@ -24,6 +24,12 @@ WiFiServer server(80);
 // Variable to store the HTTP request
 String header;
 
+struct SpotifyTokens {
+    String token;
+    unsigned long validUntil;
+    String refreshToken;
+};
+
 class Module {
    public:
     void run_main() {
@@ -51,10 +57,6 @@ class Module {
         show_qr_code();
     }
 
-    // Current time
-    unsigned long currentTime = millis();
-    // Previous time
-    unsigned long previousTime = 0;
     // Define timeout time in milliseconds (example: 2000ms = 2s)
     const long timeoutTime = 2000;
 
@@ -62,17 +64,16 @@ class Module {
         WiFiClient client = server.available();  // Listen for incoming clients
 
         if (client) {  // If a new client connects,
-            currentTime = millis();
-            previousTime = currentTime;
+            // Current time
+            unsigned long startTime = millis();
             Serial.println("New Client.");
             String currentLine = "";
             String path = "";
 
-            while (client.connected() && currentTime - previousTime <= timeoutTime) {  // loop while the client's connected
-                currentTime = millis();
-                if (client.available()) {    // if there's bytes to read from the client,
-                    char c = client.read();  // read a byte, then
-                    Serial.write(c);         // print it out the serial monitor
+            while (client.connected() && millis() - startTime <= timeoutTime) {  // loop while the client's connected
+                if (client.available()) {                                        // if there's bytes to read from the client,
+                    char c = client.read();                                      // read a byte, then
+                    Serial.write(c);                                             // print it out the serial monitor
 
                     if (c == '\r') {
                         // Skip carriage returns
@@ -86,34 +87,18 @@ class Module {
                                 // Parse the / out of `GET / HTTP/1.1`
                                 int pathStart = currentLine.indexOf("/");
                                 path = currentLine.substring(pathStart, currentLine.indexOf(" ", pathStart));
-                                Serial.println("found a GET header!" + path);
                             }
                         } else {
-                            if (path != "") {
-                                Serial.print("Requested path: '" + path + "'");
-                            }
-
                             // Two consecutive newlines - end of client request!
                             // Start our response
-                            client.println("HTTP/1.1 200 OK");
-                            client.println("Content-type:text/html");
-                            client.println("Connection: close");
-                            client.println();
+                            if (path == "/") {  // Send to Spotify for OAuth consent screen
+                                serve_redirect(client, path);
+                            } else if (path.startsWith("/callback")) {  // Get token from Spotify
+                                serve_callback(client, path);
+                            } else {
+                                Serial.println("404");
+                            }
 
-                            // Display the HTML web page
-                            client.println("<!DOCTYPE html><html>");
-                            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-                            client.println("<link rel=\"icon\" href=\"data:,\">");
-                            // CSS to style the on/off buttons
-                            // Feel free to change the background-color and font-size attributes to fit your preferences
-                            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-                            client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
-                            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-                            client.println(".button2 {background-color: #555555;}</style></head>");
-                            client.println("<body><h1>ESP32 Web Server</h1>");
-                            client.println("<p>Your request path was: '" + path + "'</p>");
-                            client.println("</body></html>");
-                            client.println();
                             // Break out of the while loop
                             break;
                         }
@@ -121,7 +106,6 @@ class Module {
                     }
                 }
             }
-
             // Close the connection
             client.stop();
             Serial.println("Client disconnected.");
@@ -130,12 +114,76 @@ class Module {
     }
 
    private:
+    void serve_redirect(WiFiClient client, String path) {
+        client.println("HTTP/1.1 302 Moved Temporarily");
+        client.printf(
+            "Location: https://accounts.spotify.com/authorize?response_type=code"
+            "&client_id=%s"
+            "&scope=user-read-email,user-read-playback-state"
+            "&redirect_uri=%s\n",
+            SPOTIFY_CLIENT_ID,
+            "http%3A%2F%2F192.168.86.188%2Fcallback");
+        // client.println("Connection: close");
+        client.println();
+    }
+
+    void serve_callback(WiFiClient client, String path) {
+        Serial.println("In callback path: " + path);
+
+        String delimiter = "?";
+        String queryParams = path.substring(path.indexOf(delimiter) + delimiter.length());
+
+        delimiter = "&";
+        int offset = 0;
+        int iteration = 0;
+        while (offset < queryParams.length() && iteration < 5) {
+            iteration++;
+
+            int delimiterPos = queryParams.indexOf("&", offset);
+            if (delimiterPos < 0) {
+                delimiterPos = queryParams.length();
+            }
+            String keyValue = queryParams.substring(offset, delimiterPos);
+            offset = delimiterPos + delimiter.length();
+
+            // Now split key and value. Remember that value is optional (/callback?key=value&key2 is valid)
+            Serial.printf("kv=%s\n\n", keyValue.c_str());
+            int splitPos = keyValue.indexOf("=");
+            String key, value;
+            if (splitPos < 0) {
+                key = keyValue;
+            } else {
+                key = keyValue.substring(0, splitPos);
+                value = keyValue.substring(splitPos + 1);
+            }
+
+            if (key == "code") {
+                get_spotify_token(value);
+            }
+        }
+
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-type:text/html");
+        client.println("Connection: close");
+        client.println();
+    }
+
+    SpotifyTokens apiTokens;
+
+    void get_spotify_token(String spotifyOAuthCode) {
+        Serial.println("TODO: use the OAuth code to get a token + refresh token");
+
+        apiTokens.token = "token";
+        apiTokens.validUntil = millis() + 3600 * 1000;
+        apiTokens.refreshToken = "foo";
+    }
+
     // 2.9" Grayscale Featherwing or Breakout:
     ThinkInk_290_Grayscale4_T5 display = ThinkInk_290_Grayscale4_T5(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY);
 
     void show_qr_code() {
         QRCode qrcode;
-        const char* server_url = ("http://" + WiFi.localIP().toString()).c_str();
+        const char* server_url = ("http://" + WiFi.localIP().toString() + "/").c_str();
         uint8_t qrcode_version = 3;
         uint8_t qrcodeBytes[qrcode_getBufferSize(qrcode_version)];
         qrcode_initText(&qrcode, qrcodeBytes, qrcode_version, 0, server_url);
