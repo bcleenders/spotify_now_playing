@@ -2,29 +2,18 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
-#include <WiFiUdp.h>
 
-#include "Adafruit_EPD.h"
-#include "Adafruit_ThinkInk.h"
-#include "base64.h"
-#include "qrcode.h"
+#include <ui.cpp>
+// #include <WiFiUdp.h>
 
-extern "C" {
-#include "crypto/base64.h"
-}
+// #include "base64.h"
+
+// extern "C" {
+// #include "crypto/base64.h"
+// }
 
 // Secrets
 #include <Credentials.h>
-
-// Pin outs for ESP32 featherwing
-#ifndef EPD_PORTS
-#define EPD_PORTS
-#define SRAM_CS 32
-#define EPD_CS 15
-#define EPD_DC 33
-#define EPD_RESET -1  // can set to -1 and share with microcontroller Reset!
-#define EPD_BUSY -1   // can set to -1 to not use a pin (will wait a fixed delay)
-#endif
 
 WiFiServer server(80);
 // Variable to store the HTTP request
@@ -67,9 +56,9 @@ class Module {
         Serial.println(WiFi.localIP().toString().c_str());
         server.begin();
 
-        show_qr_code();
+        ui.show_qr_code();
 
-        // test_function();
+        test_function();
     }
 
     void test_function() {
@@ -77,7 +66,10 @@ class Module {
 
         get_current_playing_track(track);
 
-        Serial.printf("Now playing: %s\n", track->name.c_str());
+        Serial.printf("Now playing: %s / %s, by %s\n",
+                      track->name.c_str(),
+                      track->albumName.c_str(),
+                      track->artistName.c_str());
     }
 
     // Define timeout time in milliseconds (example: 2000ms = 2s)
@@ -137,6 +129,7 @@ class Module {
     }
 
    private:
+    UI ui;
     void serve_redirect(WiFiClient client, String path) {
         client.println("HTTP/1.1 302 Moved Temporarily");
         client.printf(
@@ -214,7 +207,6 @@ class Module {
 
     bool get_spotify_token(String spotifyOAuthCode) {
         HTTPClient http;
-
         http.begin("https://accounts.spotify.com/api/token");
 
         http.addHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -222,7 +214,7 @@ class Module {
         String postData = "grant_type=authorization_code&redirect_uri=http%3A%2F%2F192.168.86.188%2Fcallback&code=" + spotifyOAuthCode;
 
         int httpResponseCode = http.POST(postData);
-        Serial.printf("HTTP response or error code: %i\n", httpResponseCode);
+        Serial.printf("(getToken) HTTP response or error code: %i\n", httpResponseCode);
         if (httpResponseCode < 200 || httpResponseCode >= 300) {
             return false;
         }
@@ -276,21 +268,31 @@ class Module {
 
         int httpResponseCode = http.GET();
 
-        Serial.printf("HTTP response or error code: %i\n", httpResponseCode);
+        Serial.printf("(getTrack) HTTP response or error code: %i\n", httpResponseCode);
         if (httpResponseCode < 200 || httpResponseCode >= 300) {
+            Serial.println("(getTrack) return false");
             return false;
         }
 
+        if (httpResponseCode == 204) {
+            track->name = "N/A";
+            track->albumName = "N/A";
+            track->artistName = "N/A";
+        }
+
+        Serial.println("(getTrack) end of if");
         String payload = http.getString();
+        Serial.println("(getTrack) getString");
         // Free resources
         http.end();
+        Serial.println("(getTrack) http end");
 
         // This allows us to only parse the fields that we're interested in.
         // The total response size (>5000 characters) is too large.
         StaticJsonDocument<200> filter;
         filter["item"]["name"] = true;
         filter["item"]["album"]["name"] = true;
-        filter["item"]["artist"][0]["name"] = true;
+        filter["item"]["artists"][0]["name"] = true;
 
         StaticJsonDocument<512> doc;
         DeserializationError error = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
@@ -304,52 +306,10 @@ class Module {
 
         track->name = doc["item"]["name"].as<String>();
         track->albumName = doc["item"]["album"]["name"].as<String>();
-        track->artistName = doc["item"]["artist"][0]["name"].as<String>();
+        track->artistName = doc["item"]["artists"][0]["name"].as<String>();
 
         return true;
     }
-
-    // 2.9" Grayscale Featherwing or Breakout:
-    ThinkInk_290_Grayscale4_T5 display = ThinkInk_290_Grayscale4_T5(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY);
-
-    void show_qr_code() {
-        QRCode qrcode;
-        const char* server_url = ("http://" + WiFi.localIP().toString() + "/").c_str();
-        uint8_t qrcode_version = 3;
-        uint8_t qrcodeBytes[qrcode_getBufferSize(qrcode_version)];
-        qrcode_initText(&qrcode, qrcodeBytes, qrcode_version, 0, server_url);
-
-        // Write to e-ink display
-        display.begin(THINKINK_GRAYSCALE4);
-        display.clearBuffer();
-        display.cp437(true);  // Enable Code Page 437-compatible charset.
-        display.setTextSize(1);
-        display.setCursor(0, 0);
-
-        int8_t xOffset = (display.width() / 2) - qrcode.size;
-        int8_t yOffset = (display.height() / 2) - qrcode.size;
-
-        for (int8_t y = 0; y < qrcode.size; y++) {
-            for (int8_t x = 0; x < qrcode.size; x++) {
-                if (qrcode_getModule(&qrcode, x, y)) {
-                    display.drawPixel(xOffset + 2 * x, yOffset + 2 * y, 1);
-                    display.drawPixel(xOffset + 2 * x, yOffset + 2 * y + 1, 1);
-                    display.drawPixel(xOffset + 2 * x + 1, yOffset + 2 * y, 1);
-                    display.drawPixel(xOffset + 2 * x + 1, yOffset + 2 * y + 1, 1);
-                } else {
-                    display.drawPixel(xOffset + 2 * x, yOffset + 2 * y, 0);
-                    display.drawPixel(xOffset + 2 * x, yOffset + 2 * y + 1, 0);
-                    display.drawPixel(xOffset + 2 * x + 1, yOffset + 2 * y, 0);
-                    display.drawPixel(xOffset + 2 * x + 1, yOffset + 2 * y + 1, 0);
-                }
-            }
-        }
-
-        display.display();
-        display.powerDown();
-    }
-
-    HTTPClient http;
 };
 
 Module* program = new Module();
