@@ -14,11 +14,13 @@ String header;
 
 class Module {
    private:
+    UI* ui;
     SpotifyClient* spClient;
     ConnectionHandler* connectionHandler;
 
    public:
-    Module(SpotifyClient* spClient, ConnectionHandler* connectionHandler) {
+    Module(UI* ui, SpotifyClient* spClient, ConnectionHandler* connectionHandler) {
+        this->ui = ui;
         this->spClient = spClient;
         this->connectionHandler = connectionHandler;
     }
@@ -44,40 +46,56 @@ class Module {
 
         Serial.print("WiFi connected. IP address: ");
         Serial.println(WiFi.localIP().toString().c_str());
+
         server.begin();
 
-        ui.show_qr_code();
+        ui->show_start_screen_qrcode();
 
         // test_function();
     }
 
     void test_function() {
-        Track* track = new Track;
-
         this->spClient->get_current_playing_track(track);
 
         Serial.printf("Now playing: %s / %s, by %s\n",
                       track->name.c_str(),
                       track->albumName.c_str(),
                       track->artistName.c_str());
-    }
 
-    void run_loop() {
-        WiFiClient client = server.available();  // Listen for incoming clients
-
-        if (client) {  // If a new client connects,
-            Serial.println("I'm here!");
-            this->connectionHandler->handle(client, this->spClient);
-        }
+        ui->show_playing_track(track);
     }
 
    private:
-    UI ui;
+    Track* track = new Track;
+    unsigned long last_track_refresh = 0;
+
+   public:
+    void run_loop() {
+        // If there is a client, serve it
+        if (WiFiClient client = server.available()) {
+            this->connectionHandler->handle(client, this->spClient);
+        }
+
+        // Refresh the API token (only if needed)
+        this->spClient->oauth_refresh_token();
+
+        if (millis() > last_track_refresh + 10 * 1000) {
+            last_track_refresh = millis();
+
+            bool trackChanged = this->spClient->get_current_playing_track(track);
+            if (trackChanged) {
+                ui->show_playing_track(track);
+            }
+        }
+
+        delay(10);
+    }
 };
 
+UI* ui = new UI();
 SpotifyClient* spClient = new SpotifyClient();
 ConnectionHandler* connectionHandler = new ConnectionHandler();
-Module* program = new Module(spClient, connectionHandler);
+Module* program = new Module(ui, spClient, connectionHandler);
 
 void setup() {
     program->run_main();

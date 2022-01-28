@@ -36,10 +36,10 @@ class ConnectionHandler {
                         // Two consecutive newlines - end of client request!
                         // Start our response
                         if (path == "/") {  // Send to Spotify for OAuth consent screen
-                            Serial.println("root");
+                            Serial.println("serving /");
                             serve_root(client, path);
                         } else if (path.startsWith("/callback")) {  // Get token from Spotify
-                            Serial.println("callback");
+                            Serial.println("serving /callback");
                             serve_callback(client, path, spClient);
                         } else {
                             Serial.println("404");
@@ -77,26 +77,11 @@ class ConnectionHandler {
         // Variables that we'll parse:
         String oAuthCode = extract_query_parameter(path, "code");
 
-        if (!oAuthCode.isEmpty() && spClient->get_spotify_token(oAuthCode)) {
-            Track* track = new Track;
-            spClient->get_current_playing_track(track);
-
+        if (!oAuthCode.isEmpty() && spClient->oauth_authenticate(oAuthCode)) {
             client.println("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
             client.println("<html><body>");
             client.println("<h1>Logged in succesfully</h1>");
-            client.println("<p>Now playing:</p>");
-            client.println("<p>Track: ");
-            client.println(track->name.c_str());
-            client.println("</p>");
-            client.println("<p>Album: ");
-            client.println(track->albumName.c_str());
-            client.println("</p>");
-            client.println("<p>Artists: ");
-            client.println(track->artistName.c_str());
-            client.println("</p>");
             client.println("</body></html>");
-
-            // TODO - start token refresh loop & start display updates
         }
     }
 
