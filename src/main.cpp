@@ -1,7 +1,7 @@
 #include <Arduino.h>
-#include <WiFi.h>
 
 #include <ConnectionHandler.cpp>
+#include <Network.cpp>
 #include <SpotifyClient.cpp>
 #include <ui.cpp>
 
@@ -31,36 +31,29 @@ class Module {
             delay(10);
         }
 
-        // Connect to Wi-Fi network with SSID and password
-        Serial.print("Connecting to:");
-        Serial.println(WIFI_SSID);
-
-        WiFi.begin(WIFI_SSID, WIFI_PASS);
-        delay(500);
-        while (WiFi.status() != WL_CONNECTED) {
-            delay(500);
-            Serial.print(".");
-        }
-        // Print local IP address and start web server
-        Serial.println("");
-
-        Serial.print("WiFi connected. IP address: ");
-        Serial.println(WiFi.localIP().toString().c_str());
-
+        String ipAddress = Network::connect(WIFI_SSID, WIFI_PASS);
         server.begin();
+        ui->show_start_screen_qrcode(ipAddress);
 
-        ui->show_start_screen_qrcode();
-
-        // test_function();
+        // ui->show_start_screen_qrcode("1.2.3.4");
     }
 
     void test_function() {
-        this->spClient->get_current_playing_track(track);
+        Serial.begin(115200);
+        while (!Serial) {
+            delay(10);
+        }
+        // this->spClient->get_current_playing_track(track);
 
-        Serial.printf("Now playing: %s / %s, by %s\n",
-                      track->name.c_str(),
-                      track->albumName.c_str(),
-                      track->artistName.c_str());
+        track->id = "trackid";
+        track->name = "Space-Dye Vest567890";
+        track->albumName = "Awake";
+        track->artistName = "Dream Theater";
+
+        // Serial.printf("Now playing: %s / %s, by %s\n",
+        //               track->name.c_str(),
+        //               track->albumName.c_str(),
+        //               track->artistName.c_str());
 
         ui->show_playing_track(track);
     }
@@ -79,7 +72,10 @@ class Module {
         // Refresh the API token (only if needed)
         this->spClient->oauth_refresh_token();
 
-        if (millis() > last_track_refresh + 10 * 1000) {
+        // Poll if the currently playing track has changed.
+        bool shouldRefresh = (millis() > track->startedPlaying + track->durationMs && millis() < track->startedPlaying + track->durationMs + 500) ||  // Track ended (or was pauzed)
+                             (millis() > last_track_refresh + 10 * 1000);                                                                             // 10 seconds passed since last refresh
+        if (this->spClient->hasValidToken() && shouldRefresh) {
             last_track_refresh = millis();
 
             bool trackChanged = this->spClient->get_current_playing_track(track);
@@ -98,9 +94,21 @@ ConnectionHandler* connectionHandler = new ConnectionHandler();
 Module* program = new Module(ui, spClient, connectionHandler);
 
 void setup() {
+#ifdef TEST_FUNCTION
+    // Easier testing of independent functions
+    program->test_function();
+#else
+    // Run the actual program
     program->run_main();
+#endif
 }
 
 void loop() {
+#ifdef TEST_FUNCTION
+    // Disable running loops periodically - just the test loop once.
+    Serial.println("Test mode - not running loop.");
+    delay(1000);
+#else
     program->run_loop();
+#endif
 }

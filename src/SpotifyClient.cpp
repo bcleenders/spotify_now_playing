@@ -10,6 +10,10 @@ struct SpotifyTokens {
     String token;
     unsigned long validUntil;
     String refreshToken;
+
+    bool hasValidToken() {
+        return validUntil > millis();
+    }
 };
 
 struct Track {
@@ -33,11 +37,13 @@ class SpotifyClient {
 
         http.addHeader("Content-Type", "application/x-www-form-urlencoded");
         http.setAuthorization(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
-        String postData = "grant_type=authorization_code&redirect_uri=http%3A%2F%2F192.168.86.188%2Fcallback&code=" + spotifyOAuthCode;
+        String postData = "grant_type=authorization_code&redirect_uri=http%3A%2F%2F192.168.86.66%2Fcallback&code=" + spotifyOAuthCode;
 
         int httpResponseCode = http.POST(postData);
         Serial.printf("(getToken) HTTP response or error code: %i\n", httpResponseCode);
         if (httpResponseCode < 200 || httpResponseCode >= 300) {
+            Serial.println(http.getString());
+
             return false;
         }
 
@@ -65,6 +71,10 @@ class SpotifyClient {
         return true;
     }
 
+    bool hasValidToken() {
+        return this->apiTokens->hasValidToken();
+    }
+
     bool oauth_refresh_token() {
         // If there is no refresh token, we cannot refresh the api token yet.
         if (apiTokens->refreshToken.isEmpty()) {
@@ -84,7 +94,7 @@ class SpotifyClient {
         String postData = "grant_type=refresh_token&refresh_token=" + apiTokens->refreshToken;
 
         int httpResponseCode = http.POST(postData);
-        Serial.printf("(getToken) HTTP response or error code: %i\n", httpResponseCode);
+        Serial.printf("(getToken/refresh) HTTP response or error code: %i\n", httpResponseCode);
         if (httpResponseCode < 200 || httpResponseCode >= 300) {
             return false;
         }

@@ -67,7 +67,7 @@ class ConnectionHandler {
             "&scope=user-read-email,user-read-playback-state"
             "&redirect_uri=%s\n",
             SPOTIFY_CLIENT_ID,
-            "http%3A%2F%2F192.168.86.188%2Fcallback");
+            "http%3A%2F%2F192.168.86.66%2Fcallback");
         client.println();
     }
 
