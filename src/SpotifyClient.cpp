@@ -31,13 +31,13 @@ class SpotifyClient {
     SpotifyTokens* apiTokens = new SpotifyTokens();
 
    public:
-    bool oauth_authenticate(String spotifyOAuthCode) {
+    bool oauth_authenticate(String spotifyOAuthCode, String callbackUri) {
         HTTPClient http;
         http.begin("https://accounts.spotify.com/api/token");
 
         http.addHeader("Content-Type", "application/x-www-form-urlencoded");
         http.setAuthorization(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET);
-        String postData = "grant_type=authorization_code&redirect_uri=http%3A%2F%2F192.168.86.66%2Fcallback&code=" + spotifyOAuthCode;
+        String postData = "grant_type=authorization_code&redirect_uri=" + callbackUri + "&code=" + spotifyOAuthCode;
 
         int httpResponseCode = http.POST(postData);
         Serial.printf("(getToken) HTTP response or error code: %i\n", httpResponseCode);

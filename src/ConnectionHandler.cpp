@@ -3,11 +3,12 @@
 #include <Arduino.h>
 #include <Credentials.h>
 
+#include <Endpoint.cpp>
 #include <SpotifyClient.cpp>
 
 class ConnectionHandler {
    public:
-    void handle(WiFiClient client, SpotifyClient* spClient) {
+    void handle(WiFiClient client, SpotifyClient* spClient, Endpoint* endpoint) {
         // Current time
         unsigned long startTime = millis();
         Serial.println("New Client.");
@@ -37,10 +38,10 @@ class ConnectionHandler {
                         // Start our response
                         if (path == "/") {  // Send to Spotify for OAuth consent screen
                             Serial.println("serving /");
-                            serve_root(client, path);
+                            serve_root(client, path, endpoint);
                         } else if (path.startsWith("/callback")) {  // Get token from Spotify
                             Serial.println("serving /callback");
-                            serve_callback(client, path, spClient);
+                            serve_callback(client, path, spClient, endpoint);
                         } else {
                             Serial.println("404");
                         }
@@ -59,7 +60,7 @@ class ConnectionHandler {
     }
 
    private:
-    void serve_root(WiFiClient client, String path) {
+    void serve_root(WiFiClient client, String path, Endpoint* endpoint) {
         client.println("HTTP/1.1 302 Moved Temporarily");
         client.printf(
             "Location: https://accounts.spotify.com/authorize?response_type=code"
@@ -67,17 +68,17 @@ class ConnectionHandler {
             "&scope=user-read-email,user-read-playback-state"
             "&redirect_uri=%s\n",
             SPOTIFY_CLIENT_ID,
-            "http%3A%2F%2F192.168.86.66%2Fcallback");
+            endpoint->escapedCallbackUri());
         client.println();
     }
 
-    void serve_callback(WiFiClient client, String path, SpotifyClient* spClient) {
+    void serve_callback(WiFiClient client, String path, SpotifyClient* spClient, Endpoint* endpoint) {
         Serial.println("In callback path: " + path);
 
         // Variables that we'll parse:
         String oAuthCode = extract_query_parameter(path, "code");
 
-        if (!oAuthCode.isEmpty() && spClient->oauth_authenticate(oAuthCode)) {
+        if (!oAuthCode.isEmpty() && spClient->oauth_authenticate(oAuthCode, String(endpoint->escapedCallbackUri()))) {
             client.println("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
             client.println("<html><body>");
             client.println("<h1>Logged in succesfully</h1>");

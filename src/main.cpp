@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include <ConnectionHandler.cpp>
+#include <Endpoint.cpp>
 #include <Network.cpp>
 #include <SpotifyClient.cpp>
 #include <ui.cpp>
@@ -17,6 +18,7 @@ class Module {
     UI* ui;
     SpotifyClient* spClient;
     ConnectionHandler* connectionHandler;
+    Endpoint* endpoint;
 
    public:
     Module(UI* ui, SpotifyClient* spClient, ConnectionHandler* connectionHandler) {
@@ -31,31 +33,12 @@ class Module {
             delay(10);
         }
 
-        String ipAddress = Network::connect(WIFI_SSID, WIFI_PASS);
+        String uri = Network::connect(WIFI_SSID, WIFI_PASS);
         server.begin();
-        ui->show_start_screen_qrcode(ipAddress);
 
-        // ui->show_start_screen_qrcode("1.2.3.4");
-    }
+        this->endpoint = new Endpoint(uri);
 
-    void test_function() {
-        Serial.begin(115200);
-        while (!Serial) {
-            delay(10);
-        }
-        // this->spClient->get_current_playing_track(track);
-
-        track->id = "trackid";
-        track->name = "Space-Dye Vest567890";
-        track->albumName = "Awake";
-        track->artistName = "Dream Theater";
-
-        // Serial.printf("Now playing: %s / %s, by %s\n",
-        //               track->name.c_str(),
-        //               track->albumName.c_str(),
-        //               track->artistName.c_str());
-
-        ui->show_playing_track(track);
+        ui->show_start_screen_qrcode(this->endpoint);
     }
 
    private:
@@ -66,7 +49,7 @@ class Module {
     void run_loop() {
         // If there is a client, serve it
         if (WiFiClient client = server.available()) {
-            this->connectionHandler->handle(client, this->spClient);
+            this->connectionHandler->handle(client, this->spClient, this->endpoint);
         }
 
         // Refresh the API token (only if needed)
@@ -80,11 +63,33 @@ class Module {
 
             bool trackChanged = this->spClient->get_current_playing_track(track);
             if (trackChanged) {
-                ui->show_playing_track(track);
+                ui->show_playing_track(track, this->endpoint);
             }
         }
 
         delay(10);
+    }
+
+    void test_function() {
+        // Serial.begin(115200);
+        // while (!Serial) {
+        //     delay(10);
+        // }
+        // ui->show_start_screen_qrcode("1.2.3.4");
+
+        // this->spClient->get_current_playing_track(track);
+
+        // track->id = "trackid";
+        // track->name = "Space-Dye Vest567890";
+        // track->albumName = "Awake";
+        // track->artistName = "Dream Theater";
+
+        // Serial.printf("Now playing: %s / %s, by %s\n",
+        //               track->name.c_str(),
+        //               track->albumName.c_str(),
+        //               track->artistName.c_str());
+
+        // ui->show_playing_track(track);
     }
 };
 

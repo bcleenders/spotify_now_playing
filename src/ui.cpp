@@ -3,6 +3,7 @@
 #include <Fonts/FreeMono9pt7b.h>
 #include <WiFi.h>
 
+#include <Endpoint.cpp>
 #include <SpotifyClient.cpp>
 
 #include "Adafruit_EPD.h"
@@ -25,16 +26,11 @@ class UI {
     ThinkInk_290_Grayscale4_T5 display = ThinkInk_290_Grayscale4_T5(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY);
 
    public:
-    void show_start_screen_qrcode(String ipAddress) {
-        const char* server_url = create_server_url(ipAddress.c_str(), "/");
-
-        Serial.print("Server url: ");
-        Serial.println(server_url);
-
+    void show_start_screen_qrcode(Endpoint* endpoint) {
         QRCode qrcode;
         uint8_t qrcode_version = 3;
         uint8_t qrcodeBytes[qrcode_getBufferSize(qrcode_version)];
-        qrcode_initText(&qrcode, qrcodeBytes, qrcode_version, 0, server_url);
+        qrcode_initText(&qrcode, qrcodeBytes, qrcode_version, 0, endpoint->rootUri());
 
         display.begin(THINKINK_GRAYSCALE4);
         display.clearBuffer();
@@ -51,7 +47,7 @@ class UI {
         Serial.println("Finished drawing");
     }
 
-    void show_playing_track(Track* track) {
+    void show_playing_track(Track* track, Endpoint* endpoint) {
         display.begin(THINKINK_GRAYSCALE4);
         display.clearBuffer();
         display.cp437(true);  // Enable Code Page 437-compatible charset.
@@ -79,11 +75,10 @@ class UI {
         display.println(track->artistName);
 
         // And draw a QR code on the side
-        const char* server_url = create_server_url(WiFi.localIP().toString().c_str(), "/");
         QRCode qrcode;
         uint8_t qrcode_version = 3;
         uint8_t qrcodeBytes[qrcode_getBufferSize(qrcode_version)];
-        qrcode_initText(&qrcode, qrcodeBytes, qrcode_version, 0, server_url);
+        qrcode_initText(&qrcode, qrcodeBytes, qrcode_version, 0, endpoint->rootUri());
 
         const int8_t scalefactor = 2;
         int8_t xOffset = display.width() - (scalefactor * qrcode.size) - 8;
@@ -117,20 +112,5 @@ class UI {
         }
     }
 
-    static char* create_server_url(const char* address, const char* path) {
-        char const* protocol = "http://";
 
-        unsigned int const sz1 = strlen(protocol);
-        unsigned int const sz2 = strlen(address);
-        unsigned int const sz3 = strlen(path);
-
-        char* url = (char*)malloc(sz1 + sz2 + sz3 + 1);
-
-        memcpy(url, protocol, sz1);
-        memcpy(url + sz1, address, sz2);
-        memcpy(url + sz1 + sz2, path, sz3);
-        url[sz1 + sz2 + sz3] = '\0';
-
-        return url;
-    }
 };
