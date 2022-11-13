@@ -68,11 +68,11 @@ class UI {
 
         display.setCursor(8, 48);
         display.print("Album: ");
-        display.println(track->albumName);
+        display.println(track->albumName.substring(0, 13)); // TODO overflow nicely
 
         display.setCursor(8, 64);
         display.print("Artist: ");
-        display.println(track->artistName);
+        display.println(track->artistName.substring(0, 12)); // TODO overflow nicely
 
         // And draw a QR code on the side
         QRCode qrcode;
@@ -111,6 +111,4 @@ class UI {
             }
         }
     }
-
-
 };
