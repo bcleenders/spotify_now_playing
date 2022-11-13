@@ -29,3 +29,10 @@ The ESP will show a different screen, with track info of the track you're curren
 Track will auto-update every few seconds.
 
 To log in as a different user, scan the QR code on the right side of the screen to restart the OAuth flow.
+
+## Develop
+
+1. Download the [pio](https://platformio.org/) CLI.
+2. Create `Credentials.h` file, by `mv src/Credentials_example.txt src/Credentials.h` and filling out the values.
+3. Plug in ESP32, find its path with `pio list`
+4. Build & run code with `pio run --upload-port /dev/ttyUSB0 --monitor-port /dev/ttyUSB0 --target upload --target monitor` (using path from previous step)
