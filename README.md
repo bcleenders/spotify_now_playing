@@ -36,3 +36,10 @@ To log in as a different user, scan the QR code on the right side of the screen 
 2. Create `Credentials.h` file, by `mv src/Credentials_example.txt src/Credentials.h` and filling out the values.
 3. Plug in ESP32, find its path with `pio list`
 4. Build & run code with `pio run --upload-port /dev/ttyUSB0 --monitor-port /dev/ttyUSB0 --target upload --target monitor` (using path from previous step)
+
+## Hardware
+
+If you use different versions, you may need to change pin mappings.
+
+- `Adafruit HUZZAH32 – ESP32 Feather Board` ([link](https://www.adafruit.com/product/3405))
+- `Adafruit 2.9" Grayscale eInk / ePaper Display FeatherWing - 4 Level Grayscale` ([link](https://www.adafruit.com/product/4777))
